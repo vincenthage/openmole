@@ -191,8 +191,8 @@ object OSGi extends Defaults {
 
   lazy val scalatexSite =
     OsgiProject("com.lihaoyi.scalatex-site", exports = Seq("scalatex.*", "ammonite.*"), privatePackages = Seq("!scala.*", "!scalatags.*", "*"), imports = Seq("*")) settings (
-      libraryDependencies += "com.lihaoyi" %% "scalatex-site" % "0.3.1",
-      version := "0.3.1"
+      libraryDependencies += "com.lihaoyi" %% "scalatex-site" % "0.3.2-SNAPSHOT",
+      version := "0.3.2-SNAPSHOT"
       )
 
   lazy val rx = OsgiProject("rx", exports = Seq("rx.*", "*.sjsir")) settings(

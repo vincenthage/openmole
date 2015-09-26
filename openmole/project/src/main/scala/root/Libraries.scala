@@ -1,12 +1,7 @@
 package root
 
+import sbt.Keys._
 import sbt._
-import Keys._
-import com.typesafe.sbt.osgi.OsgiKeys
-import OsgiKeys._
-import org.openmole.buildsystem.OMKeys._
-import org.scalajs.sbtplugin.ScalaJSPlugin
-import org.scalajs.sbtplugin.ScalaJSPlugin.autoImport._
 
 /**
  * Created with IntelliJ IDEA.
@@ -152,7 +147,7 @@ object Libraries extends Defaults {
 
   lazy val scalatest = "org.scalatest" %% "scalatest" % "2.2.4" % "test"
 
-  lazy val scalatexSite = "org.openmole" %% "com-lihaoyi-scalatex-site" % "0.3.1"
+  lazy val scalatexSite = "org.openmole" %% "com-lihaoyi-scalatex-site" % "0.3.2-SNAPSHOT"
 
   lazy val apacheConfig = "org.openmole" %% "org-apache-commons-configuration" % "1.10"
 
