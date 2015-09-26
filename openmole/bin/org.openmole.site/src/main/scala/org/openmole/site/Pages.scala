@@ -47,24 +47,34 @@ object Pages {
       div(`class` := "row")(p)
     )
 
-  def index = Page("index", Index())
-  def gettingStarted = Page("getting_started", GettingStarted())
-  def whoAreWe = Page("who_are_we", WhoAreWe())
-  def communications = Page("communications", Communications())
+  def index = Page("index",
+    Seq(scalatags.Text.tags2.title("OpenMOLE: scientific workflow, distributed computing, parameter tuning")),
+    Index())
+  def gettingStarted = Page("getting_started",
+    Seq(scalatags.Text.tags2.title("Getting started with OpenMOLE - introductory tutorial")),
+    GettingStarted())
+  def whoAreWe = Page("who_are_we",
+    Seq(scalatags.Text.tags2.title("Developers, reference publications, contact information - OpenMOLE")),
+    WhoAreWe())
+  def communications = Page("communications",
+    Seq(scalatags.Text.tags2.title("Related papers, conference slides, videos, OpenMOLE in the news")),
+    Communications())
 
   def all: Seq[Page] = DocumentationPages.allPages ++ Seq(index, gettingStarted, whoAreWe, communications)
 
 }
 
 object Page {
-  def apply(_name: String, _content: Frag) =
+  def apply(_name: String, _header: Seq[Frag], _content: Frag) =
     new Page {
       override def name: String = _name
+      override def header: Seq[Frag] = _header
       override def content: all.Frag = _content
     }
 }
 
 trait Page {
+  def header: Seq[Frag]
   def content: Frag
   def name: String
 
@@ -75,11 +85,12 @@ trait Page {
 case class Parent[T](parent: Option[T])
 
 abstract class DocumentationPage(implicit p: Parent[DocumentationPage] = Parent(None)) extends Page {
+
+  def header = Seq(scalatags.Text.tags2.title("Generic title TODO change"))
+
   def parent = p.parent
   implicit def thisIsParent = Parent[DocumentationPage](Some(this))
 
-  def content: Frag
-  def name: String
   def children: Seq[DocumentationPage]
 
   def apply() = content

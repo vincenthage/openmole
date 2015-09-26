@@ -95,8 +95,6 @@ class Site extends IApplication {
           script(src := Resource.highlightJS.file),
           script("hljs.initHighlightingOnLoad();"),
 
-          scalatags.Text.tags2.title("OpenMOLE: scientific workflow, distributed computing, parameter tuning"),
-
           meta(charset := "UTF-8"),
           //script(src := "https://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"),
           piwik
@@ -117,7 +115,7 @@ class Site extends IApplication {
       lazy val pagesFrag = Pages.all.map { p ⇒ PageFrag(p, Pages.decorate(p)) }
       lazy val documentationFrags = pagesFrag.collect { case PageFrag(p: DocumentationPage, f) ⇒ f }.toSet
 
-      def content = pagesFrag.map { case PageFrag(p, f) ⇒ p.file -> f }.toMap
+      def content = pagesFrag.map { case PageFrag(p, f) ⇒ p.file -> (headFrags ++ p.header, f) }.toMap
     }
 
     lazy val bibPapers = Publication.papers ++ Communication.papers
@@ -146,6 +144,8 @@ class Site extends IApplication {
     }
 
     DSLTest.runTest.get
+
+    // TODO test all page titles are unique
 
     IApplication.EXIT_OK
   }
