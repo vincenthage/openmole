@@ -78,7 +78,7 @@ class Site extends IApplication {
     val site = new scalatex.site.Site {
       override def siteCss = Set.empty
 
-      override def headFrags =
+      override def defaultHeader =
         Seq(
           meta(name := "description", all.content := "OpenMOLE: a workflow system for distributed computing and parameter tuning"),
           meta(name := "keywords", all.content := "Scientific Workflow Engine, Distributed Computing, Cluster, Grid, Parameter Tuning, Model Exploration, Design of Experiment, Sensitivity Analysis, Data Parallelism"),
@@ -110,12 +110,12 @@ class Site extends IApplication {
           ++ Seq(frag): _*
       )
 
-      case class PageFrag(page: Page, frag: Frag)
+      case class PageFrag(page: org.openmole.site.Page, frag: Frag)
 
       lazy val pagesFrag = Pages.all.map { p ⇒ PageFrag(p, Pages.decorate(p)) }
       lazy val documentationFrags = pagesFrag.collect { case PageFrag(p: DocumentationPage, f) ⇒ f }.toSet
 
-      def content = pagesFrag.map { case PageFrag(p, f) ⇒ p.file -> (headFrags ++ p.header, f) }.toMap
+      def content = pagesFrag.map { case PageFrag(p, f) ⇒ p.file -> (defaultHeader ++ p.header, f) }.toMap
     }
 
     lazy val bibPapers = Publication.papers ++ Communication.papers
