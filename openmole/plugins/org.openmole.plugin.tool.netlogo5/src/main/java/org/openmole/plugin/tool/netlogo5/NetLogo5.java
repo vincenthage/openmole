@@ -53,11 +53,12 @@ public class NetLogo5 implements NetLogo {
 
     @Override
     public void dispose() throws Exception {
-        Field jarsField = workspace.getExtensionManager().getClass().getField("jars");
+        ExtensionManager em = workspace.getExtensionManager();
+        Field jarsField = em.getClass().getDeclaredField("jars");
         jarsField.setAccessible(true);
-        Map<String, Object> jars = (Map<String, Object>) jarsField.get(workspace);
+        Map<String, Object> jars = (Map<String, Object>) jarsField.get(em);
         for (Object j: jars.values()) {
-            Field clField = j.getClass().getField("jarClassLoader");
+            Field clField = j.getClass().getDeclaredField("jarClassLoader");
             clField.setAccessible(true);
             ((URLClassLoader) clField.get(j)).close();
         }
