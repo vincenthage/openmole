@@ -18,10 +18,14 @@ package org.openmole.plugin.tool.netlogo5;
 
 import org.nlogo.agent.Observer;
 import org.nlogo.agent.World;
+import org.nlogo.api.ClassManager;
+import org.nlogo.api.ExtensionManager;
 import org.nlogo.headless.HeadlessWorkspace;
 import org.nlogo.nvm.Procedure;
 import org.openmole.plugin.tool.netlogo.NetLogo;
 
+import java.lang.reflect.Field;
+import java.net.URLClassLoader;
 import java.util.LinkedList;
 import java.util.Map;
 
@@ -49,6 +53,14 @@ public class NetLogo5 implements NetLogo {
 
     @Override
     public void dispose() throws Exception {
+        Field jarsField = workspace.getExtensionManager().getClass().getField("jars");
+        jarsField.setAccessible(true);
+        Map<String, Object> jars = (Map<String, Object>) jarsField.get(workspace);
+        for (Object j: jars.values()) {
+            Field clField = j.getClass().getField("jarClassLoader");
+            clField.setAccessible(true);
+            ((URLClassLoader) clField.get(j)).close();
+        }
         workspace.dispose();
     }
 
