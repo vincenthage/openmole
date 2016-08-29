@@ -36,6 +36,7 @@ import scalaz._
 import Scalaz._
 import monocle.macros.Lenses
 import org.openmole.core.workflow.builder.{ InputOutputBuilder, InputOutputConfig }
+import scala.util.{ Try, Success, Failure }
 
 object CARETask extends Logger {
   implicit def isTask: InputOutputBuilder[CARETask] = InputOutputBuilder(CARETask._config)
@@ -90,24 +91,57 @@ object CARETask extends Logger {
 
   archive.setExecutable(true)
 
-  override protected def process(context: Context, executionContext: TaskExecutionContext)(implicit rng: RandomProvider) = external.withWorkDir(executionContext) { taskWorkDirectory ⇒
-    taskWorkDirectory.mkdirs()
-
+  /**
+   * CARE archives are auto-extractable,
+   * so extracting them only requires executing them.
+   */
+  protected def extractArchive(taskWorkDirectory: File): Try[File] = {
     // unarchiving in task's work directory
     // no need to retrieve error => will throw exception if failing
     execute(Array(archive.getAbsolutePath), taskWorkDirectory, Seq.empty, Context.empty, true, true)
 
-    val extractedArchive = taskWorkDirectory.listFilesSafe.headOption.getOrElse(
+    Try(taskWorkDirectory.listFilesSafe.headOption.getOrElse(
       throw new InternalProcessingError("Work directory should contain extracted archive, but is empty")
-    )
+    ))
+  }
 
-    val reExecute = extractedArchive / "re-execute.sh"
+  protected def getExecutionScript(extractedArchive: File): Try[File] = {
+    Try(extractedArchive / "re-execute.sh")
+  }
 
+  protected def getUserWorkDirectory(reExecute: File): Try[String] = {
     val packagingDirectory: String = workDirectoryLine(reExecute.lines).getOrElse(
       throw new InternalProcessingError(s"Could not find packaging path in ${archive}")
     )
 
-    def userWorkDirectory = workDirectory.getOrElse(packagingDirectory)
+    Try(workDirectory.getOrElse(packagingDirectory))
+  }
+
+  /**
+   * Get the path to the PRoot executable.
+   * It is already included in CARE archives.
+   */
+  protected def getPRoot(extractedArchive: File): Try[File] = {
+    Try(extractedArchive / "proot")
+  }
+
+  override protected def process(context: Context, executionContext: TaskExecutionContext)(implicit rng: RandomProvider) = external.withWorkDir(executionContext) { taskWorkDirectory ⇒
+    taskWorkDirectory.mkdirs()
+
+    val extractedArchive = extractArchive(taskWorkDirectory) match {
+      case Success(file)  ⇒ file
+      case Failure(error) ⇒ throw error
+    }
+
+    val reExecute = getExecutionScript(extractedArchive) match {
+      case Success(file)  ⇒ file
+      case Failure(error) ⇒ throw error
+    }
+
+    def userWorkDirectory = getUserWorkDirectory(reExecute) match {
+      case Success(string) ⇒ string
+      case Failure(error)  ⇒ throw error
+    }
 
     def inputPathResolver(path: String) = {
       if (new File(path).isAbsolute) taskWorkDirectory / "inputs" / path
@@ -116,8 +150,11 @@ object CARETask extends Logger {
 
     val preparedContext = external.prepareInputFiles(context, inputPathResolver)
 
-    // Replace new proot with a version with user bindings
-    val proot = extractedArchive / "proot"
+    /** Replace new proot with a version with user bindings */
+    val proot = getPRoot(extractedArchive) match {
+      case Success(file)  ⇒ file
+      case Failure(error) ⇒ throw error
+    }
     proot move (extractedArchive / "proot.origin")
 
     /** Traverse directory hierarchy to retrieve terminal elements (files and empty directories) */
@@ -127,6 +164,7 @@ object CARETask extends Logger {
         else file.listFilesSafe.flatMap(f ⇒ leafs(f, s"$bindingDestination/${f.getName}"))
       else Seq(file → bindingDestination)
 
+    /** Each input file receives a binding */
     def bindings =
       leafs(taskWorkDirectory / "inputs", "").map { case (f, b) ⇒ f.getAbsolutePath → b } ++
         hostFiles.map { case (f, b) ⇒ f → b.getOrElse(f) }
