@@ -226,7 +226,7 @@ object ContainerTask extends Logger {
              |#!/bin/bash
              |PROOT=./proot
              |$envVariables
-             |PROOT \\
+             |$$PROOT \\
              | -R rootfs \\
              | -w $workingDir \\
              | -n \\
