@@ -156,7 +156,8 @@ object Bin extends Defaults(Core, Plugin, REST, Gui, Libraries, ThirdParties, ro
       gridscalePBS intransitive (),
       gridscaleOAR intransitive (),
       gridscaleSSH intransitive (),
-      osgiCompendium intransitive ()
+      osgiCompendium intransitive (),
+      spray intransitive ()
     ) ++ apacheHTTP map (_ intransitive ()),
       dependencyFilter := pluginFilter,
       dependencyName := rename
