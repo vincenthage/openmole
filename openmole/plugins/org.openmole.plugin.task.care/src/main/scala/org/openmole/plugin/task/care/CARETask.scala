@@ -20,23 +20,21 @@ package org.openmole.plugin.task.care
 
 import java.io.File
 
+import monocle.macros.Lenses
 import org.openmole.core.exception.InternalProcessingError
+import org.openmole.core.workflow.builder.{ InputOutputBuilder, InputOutputConfig }
 import org.openmole.core.workflow.data._
-import org.openmole.core.workflow.tools._
-import org.openmole.plugin.task.external.{ External, ExternalBuilder }
-import org.openmole.tool.logger.Logger
-import org.openmole.plugin.task.systemexec._
-import org.openmole.plugin.task.systemexec
-import org.openmole.core.workflow.data._
-import org.openmole.core.workflow.task._
-import org.openmole.core.workflow.validation._
 import org.openmole.core.workflow.dsl._
+import org.openmole.core.workflow.task._
+import org.openmole.core.workflow.tools._
+import org.openmole.core.workflow.validation._
+import org.openmole.plugin.task.external.{ External, ExternalBuilder }
+import org.openmole.plugin.task.systemexec
+import org.openmole.plugin.task.systemexec._
+import org.openmole.tool.logger.Logger
 
 import scalaz._
 import Scalaz._
-import monocle.macros.Lenses
-import org.openmole.core.workflow.builder.{ InputOutputBuilder, InputOutputConfig }
-import scala.util.{ Try, Success, Failure }
 
 object CARETask extends Logger {
   implicit def isTask: InputOutputBuilder[CARETask] = InputOutputBuilder(CARETask._config)
@@ -95,53 +93,44 @@ object CARETask extends Logger {
    * CARE archives are auto-extractable,
    * so extracting them only requires executing them.
    */
-  protected def extractArchive(taskWorkDirectory: File): Try[File] = {
+  protected def extractArchive(taskWorkDirectory: File): File = {
     // unarchiving in task's work directory
     // no need to retrieve error => will throw exception if failing
     execute(Array(archive.getAbsolutePath), taskWorkDirectory, Seq.empty, Context.empty, true, true)
 
-    Try(taskWorkDirectory.listFilesSafe.headOption.getOrElse(
+    taskWorkDirectory.listFilesSafe.headOption.getOrElse(
       throw new InternalProcessingError("Work directory should contain extracted archive, but is empty")
-    ))
+    )
   }
 
-  protected def getExecutionScript(extractedArchive: File): Try[File] = {
-    Try(extractedArchive / "re-execute.sh")
+  protected def getExecutionScript(extractedArchive: File): File = {
+    extractedArchive / "re-execute.sh"
   }
 
-  protected def getUserWorkDirectory(reExecute: File): Try[String] = {
+  protected def getUserWorkDirectory(reExecute: File): String = {
     val packagingDirectory: String = workDirectoryLine(reExecute.lines).getOrElse(
       throw new InternalProcessingError(s"Could not find packaging path in ${archive}")
     )
 
-    Try(workDirectory.getOrElse(packagingDirectory))
+    workDirectory.getOrElse(packagingDirectory)
   }
 
   /**
    * Get the path to the PRoot executable.
    * It is already included in CARE archives.
    */
-  protected def getPRoot(extractedArchive: File): Try[File] = {
-    Try(extractedArchive / "proot")
+  protected def getPRoot(extractedArchive: File): File = {
+    extractedArchive / "proot"
   }
 
   override protected def process(context: Context, executionContext: TaskExecutionContext)(implicit rng: RandomProvider) = external.withWorkDir(executionContext) { taskWorkDirectory ⇒
     taskWorkDirectory.mkdirs()
 
-    val extractedArchive = extractArchive(taskWorkDirectory) match {
-      case Success(file)  ⇒ file
-      case Failure(error) ⇒ throw error
-    }
+    val extractedArchive = extractArchive(taskWorkDirectory)
 
-    val reExecute = getExecutionScript(extractedArchive) match {
-      case Success(file)  ⇒ file
-      case Failure(error) ⇒ throw error
-    }
+    val reExecute = getExecutionScript(extractedArchive)
 
-    def userWorkDirectory = getUserWorkDirectory(reExecute) match {
-      case Success(string) ⇒ string
-      case Failure(error)  ⇒ throw error
-    }
+    def userWorkDirectory = getUserWorkDirectory(reExecute)
 
     def inputPathResolver(path: String) = {
       if (new File(path).isAbsolute) taskWorkDirectory / "inputs" / path
@@ -151,10 +140,7 @@ object CARETask extends Logger {
     val preparedContext = external.prepareInputFiles(context, inputPathResolver)
 
     /** Replace new proot with a version with user bindings */
-    val proot = getPRoot(extractedArchive) match {
-      case Success(file)  ⇒ file
-      case Failure(error) ⇒ throw error
-    }
+    val proot = getPRoot(extractedArchive)
     proot move (extractedArchive / "proot.origin")
 
     /** Traverse directory hierarchy to retrieve terminal elements (files and empty directories) */

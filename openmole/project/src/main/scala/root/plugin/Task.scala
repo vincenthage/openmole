@@ -31,10 +31,13 @@ object Task extends PluginDefaults {
     )
 
   lazy val care = OsgiProject("care", imports = Seq("*")) dependsOn (systemexec) settings (
-    libraryDependencies += Libraries.scalatest,
-    libraryDependencies += Libraries.spray
+    libraryDependencies += Libraries.scalatest
   )
 
   lazy val tools = OsgiProject("tools", imports = Seq("*")) dependsOn (Core.dsl)
 
+  lazy val container = OsgiProject("container", imports = Seq("*")) dependsOn (systemexec) settings (
+    libraryDependencies += Libraries.scalatest,
+    libraryDependencies += Libraries.spray
+    )
 }

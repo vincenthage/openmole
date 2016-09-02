@@ -15,12 +15,12 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package org.openmole.plugin.task.care
+package org.openmole.plugin.task.container
 
 import monocle.Lens
 import org.openmole.plugin.task.systemexec._
 
-trait CARETaskBuilder[T] extends ReturnValue[T]
+trait ContainerTaskBuilder[T] extends ReturnValue[T]
     with ErrorOnReturnValue[T]
     with StdOutErr[T]
     with EnvironmentVariables[T]
