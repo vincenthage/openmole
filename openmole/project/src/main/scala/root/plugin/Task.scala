@@ -39,5 +39,5 @@ object Task extends PluginDefaults {
   lazy val container = OsgiProject("container", imports = Seq("*")) dependsOn (systemexec) settings (
     libraryDependencies += Libraries.scalatest,
     libraryDependencies += Libraries.spray
-    )
+  )
 }

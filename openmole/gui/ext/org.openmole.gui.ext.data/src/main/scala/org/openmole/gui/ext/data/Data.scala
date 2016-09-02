@@ -458,6 +458,11 @@ sealed trait TaskType {
   def postVariable: String = ""
 }
 
+case class ContainerTaskType() extends TaskType {
+  override val preVariable = """${"""
+  override val postVariable = "}"
+}
+
 case class CareTaskType() extends TaskType {
   override val preVariable = """${"""
   override val postVariable = "}"

@@ -46,9 +46,9 @@ object OCI {
   object EmptyObject
 
   case class ManifestData(
-    Config:   String,
-    Layers:   List[String],
-    RepoTags: List[String]
+    Config:   Option[String],
+    Layers:   Option[List[String]],
+    RepoTags: Option[List[String]]
   )
   object ManifestData
 
@@ -63,14 +63,13 @@ object OCI {
   )
   object ConfigurationData
 
-  object OCIJsonProtocol extends DefaultJsonProtocol {
+  trait OCIJsonProtocol extends DefaultJsonProtocol with NullOptions {
     implicit val emptyObjectFormat = jsonFormat0(EmptyObject.apply)
     implicit val manifestDataFormat = jsonFormat3(ManifestData.apply)
     implicit val configurationDataFormat = jsonFormat7(ConfigurationData.apply)
   }
 }
 import OCI._
-import OCIJsonProtocol._
 
 object WhiteoutUtils {
   /* @see <a href="https://github.com/docker/docker/blob/master/pkg/archive/whiteouts.go">Whiteout files</a> */
@@ -154,7 +153,7 @@ object ContainerTask extends Logger {
     environmentVariables: Vector[(Prototype[_], String)],
     _config:              InputOutputConfig,
     external:             External
-) extends Task with ValidateTask {
+) extends Task with ValidateTask with Logger with OCIJsonProtocol {
 
   def config = InputOutputConfig.outputs.modify(_ ++ Seq(stdOut, stdErr, returnValue).flatten)(_config)
 
@@ -167,12 +166,17 @@ object ContainerTask extends Logger {
   private def getManifestAndConfig(extractedDir: File): (ManifestData, ConfigurationData) = {
     val manifestFile = extractedDir / "manifest.json"
     if (!manifestFile.exists())
-      throw new InternalProcessingError("Extracted image doesn't contain manifest file")
+      throw new InternalProcessingError("Extracted image does not contain manifest file")
 
     val manifestAST = manifestFile.content.parseJson
-    val manifest = manifestAST.convertTo[ManifestData]
+    val manifest = manifestAST.convertTo[List[ManifestData]].headOption.getOrElse(
+      throw new InternalProcessingError("Issue with Manifest: " + manifestAST.prettyPrint)
+    )
 
-    val configurationFile = extractedDir / manifest.Config
+    val configurationFileName = manifest.Config.getOrElse(
+      throw new InternalProcessingError("Manifest does not contain configuration field")
+    )
+    val configurationFile = extractedDir / configurationFileName
     if (!configurationFile.exists())
       throw new InternalProcessingError("Extracted image doesn't contain configuration file")
     val configAST = configurationFile.content.parseJson
@@ -200,18 +204,28 @@ object ContainerTask extends Logger {
    */
   protected def extractArchive(taskWorkDirectory: File): File = {
     // 1. Preparing the image (extracting it)
+    Log.logger.info("1. Preparing the image")
     val extractedDir = taskWorkDirectory.newDir("image")
+    extractedDir.mkdir()
     archive.extract(extractedDir)
+    if (!extractedDir.exists())
+      throw new InternalProcessingError("Archive hasn't been extracted")
 
     // 2. Analysing the image
-    val (manifest, config) = getManifestAndConfig(extractedDir)
+    Log.logger.info("2. Analysing the image")
+    val (manifest, _) = getManifestAndConfig(extractedDir)
 
     // 3. Squashing image
+    Log.logger.info("3. Squashing the image")
     val rootfsDir = extractedDir / "rootfs"
     rootfsDir.mkdir()
 
     // extracting all layers into the same directory, rootfs
-    manifest.Layers.foreach {
+    Log.logger.info("3.1. Extracting layers")
+    val layers = manifest.Layers.getOrElse(
+      throw new InternalProcessingError("Manifest does not have the Layers field")
+    )
+    layers.foreach {
       layerName ⇒
         {
           (extractedDir / layerName).extract(rootfsDir)
@@ -219,6 +233,7 @@ object ContainerTask extends Logger {
     }
 
     // removing the whiteout files
+    Log.logger.info("3.2. Removing whiteout files")
     val whiteouts = rootfsDir.listRecursive(f ⇒ isWhiteout(f))
     whiteouts.foreach(whiteout ⇒ if (whiteout.exists()) {
       // whiteouts indicate that a file has been deleted in recent layers,
@@ -231,6 +246,7 @@ object ContainerTask extends Logger {
       whiteout.recursiveDelete
     })
 
+    Log.logger.info("Rootfs ready!")
     extractedDir
   }
 
@@ -283,10 +299,6 @@ object ContainerTask extends Logger {
     executionScript
   }
 
-  /**
-   * Not sure about this one.
-   * TODO: Verify (ask to Jonathan)
-   */
   protected def getUserWorkDirectory(reExecute: File): String = {
     val packagingDirectory: String = workDirectoryLine(reExecute.lines).getOrElse(
       throw new InternalProcessingError(s"Could not find packaging path in ${archive}")

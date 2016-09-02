@@ -528,6 +528,11 @@ object ApiImpl extends Api {
             }.map { p ⇒ default(p._1, p._2) }.mkString(",\n")
 
       language.taskType match {
+        case cott: ContainerTaskType ⇒
+          os.write(
+            s"""\nval task = ContainerTask(workDirectory / "$executableName", "$command") set(\n""" +
+              inString + ouString + imFileString + omFileString + resourcesString + defaults
+          )
         case ctt: CareTaskType ⇒
           os.write(
             s"""\nval task = CARETask(workDirectory / "$executableName", "$command") set(\n""" +

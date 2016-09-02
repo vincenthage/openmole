@@ -23,7 +23,7 @@ import org.openmole.core.dsl._
 
 package container {
   trait ContainerPackage extends SystemExecPackage {
-    lazy val hostFiles = new {
+    lazy val containerHostFiles = new {
       def +=[T: ContainerTaskBuilder](hostFile: String, binding: OptionalArgument[String] = None) =
         implicitly[ContainerTaskBuilder[T]].hostFiles add (hostFile, binding)
     }
