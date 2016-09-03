@@ -103,6 +103,11 @@ package object tar {
         _.extract(dest, overwrite)
       }
 
+    def extractOverwrite(dest: File) =
+      withClosable(new TarInputStream(file.bufferedInputStream)) {
+        _.extract(dest, true)
+      }
+
     def copyCompress(toF: File): File = {
       if (toF.isDirectory) file.archiveCompress(toF)
       else file.copyCompressFile(toF)

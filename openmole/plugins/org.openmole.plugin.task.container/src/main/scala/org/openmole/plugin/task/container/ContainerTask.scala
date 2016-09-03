@@ -228,7 +228,7 @@ object ContainerTask extends Logger {
     layers.foreach {
       layerName ⇒
         {
-          (extractedDir / layerName).extract(rootfsDir)
+          (extractedDir / layerName).extractOverwrite(rootfsDir)
         }
     }
 
