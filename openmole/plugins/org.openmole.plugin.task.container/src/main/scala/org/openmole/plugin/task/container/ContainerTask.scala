@@ -54,9 +54,12 @@ object OCI {
 
   case class ConfigurationData(
     Cmd:          Option[List[String]],
+    CpuShares:    Option[Int],
     Entrypoint:   Option[List[String]],
     Env:          Option[List[String]],
     ExposedPorts: Option[Map[String, EmptyObject]],
+    Memory:       Option[Int],
+    MemorySwap:   Option[Int],
     User:         Option[String],
     Volumes:      Option[Map[String, EmptyObject]],
     WorkingDir:   Option[String]
@@ -66,7 +69,7 @@ object OCI {
   trait OCIJsonProtocol extends DefaultJsonProtocol with NullOptions {
     implicit val emptyObjectFormat = jsonFormat0(EmptyObject.apply)
     implicit val manifestDataFormat = jsonFormat3(ManifestData.apply)
-    implicit val configurationDataFormat = jsonFormat7(ConfigurationData.apply)
+    implicit val configurationDataFormat = jsonFormat10(ConfigurationData.apply)
   }
 }
 import OCI._
@@ -283,15 +286,14 @@ object ContainerTask extends Logger {
     executionScript.content =
       s"""
          |#!/bin/bash
-         |PROOT=./proot
          |$envVariables
-         |$$PROOT \\
-         | -R rootfs \\
-         | -w $workingDir \\
-         | -n \\
-         | $entrypoint \\
-         | $$@
-          """.stripMargin
+         |./proot \\
+         |  -R ./rootfs \\
+         |  -w $workingDir \\
+         |  -n \\
+         |  $entrypoint \\
+         |  $$@
+       """.stripMargin
 
     executionScript.setExecutable(true)
 
@@ -322,6 +324,7 @@ object ContainerTask extends Logger {
     val prootExecutable = extractedArchive / "proot"
     prootLocation.copy(prootExecutable)
 
+    prootExecutable.setExecutable(true)
     prootExecutable
   }
 
@@ -340,6 +343,7 @@ object ContainerTask extends Logger {
 
     Log.logger.info("- Building script")
     val reExecute = getExecutionScript(extractedArchive, manifest, config)
+    Log.logger.info("-~~ Script content:" + reExecute.content)
 
     Log.logger.info("- Getting user work directory")
     def userWorkDirectory = getUserWorkDirectory(config)
@@ -410,7 +414,9 @@ object ContainerTask extends Logger {
     if (errorOnReturnValue && returnValue.isEmpty && executionResult.returnCode != 0)
       throw new InternalProcessingError(
         s"""Error executing command":
-            |[${commandline.mkString(" ")}] return code was not 0 but ${executionResult.returnCode}""".stripMargin
+            |[${commandline.mkString(" ")}] return code was not 0 but ${executionResult.returnCode}.
+            | output: ${executionResult.output}
+            | Error output: ${executionResult.errorOutput}""".stripMargin
       )
 
     def rootDirectory = extractedArchive / "rootfs"
