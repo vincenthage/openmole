@@ -202,9 +202,9 @@ object ContainerTask extends Logger {
    *   3. squash the image (extract and merge the layers)
    *   4. remove the whiteouts
    */
-  protected def extractArchive(taskWorkDirectory: File): File = {
+  protected def extractArchive(taskWorkDirectory: File): (File, ManifestData, ConfigurationData) = {
     // 1. Preparing the image (extracting it)
-    Log.logger.info("1. Preparing the image")
+    Log.logger.info("-- Preparing the image")
     val extractedDir = taskWorkDirectory.newDir("image")
     extractedDir.mkdir()
     archive.extract(extractedDir)
@@ -212,16 +212,15 @@ object ContainerTask extends Logger {
       throw new InternalProcessingError("Archive hasn't been extracted")
 
     // 2. Analysing the image
-    Log.logger.info("2. Analysing the image")
-    val (manifest, _) = getManifestAndConfig(extractedDir)
+    Log.logger.info("-- Retrieving manifest and configuration metadata")
+    val (manifest, config) = getManifestAndConfig(extractedDir)
 
     // 3. Squashing image
-    Log.logger.info("3. Squashing the image")
     val rootfsDir = extractedDir / "rootfs"
     rootfsDir.mkdir()
 
     // extracting all layers into the same directory, rootfs
-    Log.logger.info("3.1. Extracting layers")
+    Log.logger.info("--- Extracting layers")
     val layers = manifest.Layers.getOrElse(
       throw new InternalProcessingError("Manifest does not have the Layers field")
     )
@@ -233,7 +232,7 @@ object ContainerTask extends Logger {
     }
 
     // removing the whiteout files
-    Log.logger.info("3.2. Removing whiteout files")
+    Log.logger.info("--- Removing whiteout files")
     val whiteouts = rootfsDir.listRecursive(f ⇒ isWhiteout(f))
     whiteouts.foreach(whiteout ⇒ if (whiteout.exists()) {
       // whiteouts indicate that a file has been deleted in recent layers,
@@ -246,8 +245,8 @@ object ContainerTask extends Logger {
       whiteout.recursiveDelete
     })
 
-    Log.logger.info("Rootfs ready!")
-    extractedDir
+    Log.logger.info("--> Rootfs ready!")
+    (extractedDir, manifest, config)
   }
 
   /**
@@ -259,11 +258,10 @@ object ContainerTask extends Logger {
    * - the entrypoint ?
    * - other options
    */
-  protected def getExecutionScript(extractedArchive: File): File = {
+  protected def getExecutionScript(extractedArchive: File, manifest: ManifestData, config: ConfigurationData): File = {
+    Log.logger.info("-- Preparing file and content")
     val executionScript = extractedArchive / "re-execute.sh"
     executionScript.createNewFile()
-
-    val (manifest, config) = getManifestAndConfig(extractedArchive)
 
     val entrypoint = config.Entrypoint match {
       case Some(list) ⇒ assembleCommandParts(list)
@@ -281,6 +279,7 @@ object ContainerTask extends Logger {
       case None ⇒ ""
     }
 
+    Log.logger.info("-- Writing content")
     executionScript.content =
       s"""
          |#!/bin/bash
@@ -299,12 +298,9 @@ object ContainerTask extends Logger {
     executionScript
   }
 
-  protected def getUserWorkDirectory(reExecute: File): String = {
-    val packagingDirectory: String = workDirectoryLine(reExecute.lines).getOrElse(
-      throw new InternalProcessingError(s"Could not find packaging path in ${archive}")
-    )
-
-    workDirectory.getOrElse(packagingDirectory)
+  protected def getUserWorkDirectory(config: ConfigurationData): String = {
+    val packagingDirectory = config.WorkingDir
+    workDirectory.getOrElse(packagingDirectory.getOrElse("/"))
   }
 
   /**
@@ -314,6 +310,7 @@ object ContainerTask extends Logger {
    */
   protected def getPRoot(extractedArchive: File): File = {
     // 4.1. We copy proot in the local extracted image
+    Log.logger.info("-- Retrieving PRoot")
     def runtimeDirLocation = Workspace.openMOLELocation / "runtime"
 
     val prootLocation = runtimeDirLocation / "proot"
@@ -321,6 +318,7 @@ object ContainerTask extends Logger {
     if (!prootLocation.exists())
       throw new InternalProcessingError("PRoot not found in OpenMOLE runtime directory")
 
+    Log.logger.info("-- Copying PRoot")
     val prootExecutable = extractedArchive / "proot"
     prootLocation.copy(prootExecutable)
 
@@ -337,20 +335,25 @@ object ContainerTask extends Logger {
   override protected def process(context: Context, executionContext: TaskExecutionContext)(implicit rng: RandomProvider) = external.withWorkDir(executionContext) { taskWorkDirectory ⇒
     taskWorkDirectory.mkdirs()
 
-    val extractedArchive = extractArchive(taskWorkDirectory)
+    Log.logger.info("- Preparing rootfs")
+    val (extractedArchive, manifest, config) = extractArchive(taskWorkDirectory)
 
-    val reExecute = getExecutionScript(extractedArchive)
+    Log.logger.info("- Building script")
+    val reExecute = getExecutionScript(extractedArchive, manifest, config)
 
-    def userWorkDirectory = getUserWorkDirectory(reExecute)
+    Log.logger.info("- Getting user work directory")
+    def userWorkDirectory = getUserWorkDirectory(config)
 
     def inputPathResolver(path: String) = {
       if (new File(path).isAbsolute) taskWorkDirectory / "inputs" / path
       else taskWorkDirectory / "inputs" / userWorkDirectory / path
     }
 
+    Log.logger.info("- Preparing input files")
     val preparedContext = external.prepareInputFiles(context, inputPathResolver)
 
     /** Replace new proot with a version with user bindings */
+    Log.logger.info("- Retrieving PRoot executable")
     val proot = getPRoot(extractedArchive)
     proot move (extractedArchive / "proot.origin")
 
